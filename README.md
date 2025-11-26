@@ -2,20 +2,85 @@
 
 An LLM red-team fuzzer that runs a library of jailbreak prompts through multiple mutation strategies, scores the responses, logs everything to CSV/JSON, and ships a clean HTML report with a pie chart summary.
 
+**Features:**
+- 🎯 18 mutation strategies (DAN, AIM, base64, token smuggling, etc.)
+- 📊 Beautiful HTML reports with charts
+- 🔄 Automatic retry with exponential backoff
+- 🎭 Mock mode for testing without API costs
+- 📝 Comprehensive logging (JSON, CSV)
+
+## Quick Start
+
+**Try it immediately without any API keys:**
+
+```bash
+git clone https://github.com/yourusername/promptfuzz-cli.git
+cd promptfuzz-cli
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e .
+
+# Run with mock LLM (no API required)
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations dan,aim,grandma
+
+# Open report.html in your browser to see results!
+```
+
+This generates a full HTML report showing which jailbreak techniques would bypass filters, perfect for demos and testing!
+
+## Prerequisites
+
+- Python 3.8+
+- pip and venv
+- (Optional) OpenAI API key for testing real models
+
 ## Installation
 
 ```bash
+git clone https://github.com/yourusername/promptfuzz-cli.git
+cd promptfuzz-cli
 python -m venv .venv
-.\.venv\Scripts\activate   # or source .venv/bin/activate on *nix
+.venv\Scripts\activate   # or source .venv/bin/activate on *nix
 pip install -e .
 ```
 
 ## Usage
 
+### Step 1: Test Locally (No API Key Required)
+
+Start with mock mode to understand how the tool works:
+
+```bash
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations dan,aim,base64
+```
+
+Open `report.html` to see the results!
+
+### Step 2: Test with Real LLMs
+
+Once you have an OpenAI API key with credits:
+
+```bash
+# Create .key file with your API key
+echo "sk-your-api-key-here" > .key
+
+# Run against GPT-3.5-turbo (recommended for testing)
+promptfuzz --target gpt-3.5-turbo \
+  --prompts test.txt \
+  --mutations dan,prefix,base64 \
+  --api-url https://api.openai.com/v1/chat/completions \
+  --api-key-file .key \
+  --delay-ms 25000
+```
+
+### Step 3: Comprehensive Security Audit
+
+Run all 18 mutations for thorough testing:
+
 ```bash
 promptfuzz --target gpt-4 \
   --prompts prompts.txt \
-  --mutations dan,aim,evil_confidant,refusal_suppression,base64,token_smuggling \
+  --mutations all \
   --api-url https://api.openai.com/v1/chat/completions \
   --api-key-file .key \
   --delay-ms 25000 \
@@ -98,9 +163,9 @@ promptfuzz --target gpt-mock --prompts prompts.txt --mutations dan,aim,evil_conf
 promptfuzz --target gpt-mock --prompts prompts.txt --mutations refusal_suppression,token_smuggling,hypothetical
 ```
 
-**Comprehensive test (all mutations):**
+**Comprehensive test (all 18 mutations):**
 ```bash
-promptfuzz --target gpt-mock --prompts prompts.txt --mutations prefix,base64,typo,hex,padding,rot13,leet,whitespace,context,dan,evil_confidant,grandma,aim,refusal_suppression,token_smuggling,translation_chain,hypothetical,opposite
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations all
 ```
 
 ## What it does
@@ -148,6 +213,24 @@ promptfuzz --target gpt-3.5-turbo \
   --api-url https://api.openai.com/v1/chat/completions \
   --api-key-file .key \
   --delay-ms 25000
+```
+
+### Quota Exceeded Error
+
+**Problem**: Seeing `You exceeded your current quota, please check your plan and billing details`
+
+**This means you have $0 in API credits, not a rate limit issue.**
+
+**Solution**:
+1. Go to https://platform.openai.com/account/billing/overview
+2. Add a payment method (credit/debit card)
+3. Add at least $5-10 in credits
+4. Wait 2-3 minutes for credits to appear
+5. **Cost**: GPT-3.5-turbo costs ~$0.0005 per request (very cheap for testing)
+
+**While waiting for credits**, use mock mode to demo the tool:
+```bash
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations all
 ```
 
 ### API Key Issues
