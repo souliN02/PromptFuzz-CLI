@@ -1,0 +1,19 @@
+# Virtual environments
+.venv/
+venv/
+
+# Bytecode and caches
+__pycache__/
+*.pyc
+
+# Packaging metadata
+*.egg-info/
+
+# Reports and generated outputs
+report.html
+report.json
+report.csv
+
+# OS noise
+.DS_Store
+Thumbs.db

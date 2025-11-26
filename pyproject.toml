@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "promptfuzz"
+version = "0.1.0"
+description = "A Red Team Fuzzing Tool for LLMs"
+readme = "README.md"
+authors = [{name = "YourName", email = "you@example.com"}]
+dependencies = [
+    "click",
+    "jinja2",
+    "requests"
+]
+requires-python = ">=3.8"
+
+[project.scripts]
+promptfuzz = "cli:scan"
