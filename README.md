@@ -3,18 +3,18 @@
 An LLM red-team fuzzer that runs a library of jailbreak prompts through multiple mutation strategies, scores the responses, logs everything to CSV/JSON, and ships a clean HTML report with a pie chart summary.
 
 **Features:**
-- 🎯 18 mutation strategies (DAN, AIM, base64, token smuggling, etc.)
-- 📊 Beautiful HTML reports with charts
-- 🔄 Automatic retry with exponential backoff
-- 🎭 Mock mode for testing without API costs
-- 📝 Comprehensive logging (JSON, CSV)
+- 18 mutation strategies (DAN, AIM, base64, token smuggling, etc.)
+- Beautiful HTML reports with charts
+- Automatic retry with exponential backoff
+- Mock mode for testing without API costs
+- Comprehensive logging (JSON, CSV)
 
 ## Quick Start
 
 **Try it immediately without any API keys:**
 
 ```bash
-git clone https://github.com/yourusername/promptfuzz-cli.git
+git clone https://github.com/souliN02/promptfuzz-cli.git
 cd promptfuzz-cli
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
@@ -37,7 +37,7 @@ This generates a full HTML report showing which jailbreak techniques would bypas
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/promptfuzz-cli.git
+git clone https://github.com/souliN02/promptfuzz-cli.git
 cd promptfuzz-cli
 python -m venv .venv
 .venv\Scripts\activate   # or source .venv/bin/activate on *nix
