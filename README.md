@@ -32,7 +32,10 @@ This generates a full HTML report showing which jailbreak techniques would bypas
 
 - Python 3.8+
 - pip and venv
-- (Optional) OpenAI API key for testing real models
+- (Optional) API key for real LLM testing:
+  - **Groq** (recommended - 30 RPM free): [console.groq.com](https://console.groq.com)
+  - **Ollama** (unlimited local): [ollama.com](https://ollama.com)
+  - **OpenAI** (3 RPM, needs credits): [platform.openai.com](https://platform.openai.com)
 
 ## Installation
 
@@ -86,6 +89,65 @@ promptfuzz --target gpt-4 \
   --delay-ms 25000 \
   --out-html report.html --out-json report.json --out-csv report.csv
 ```
+
+## Alternative LLM Providers
+
+### 🚀 Groq (Free Tier: 30 RPM - 10x OpenAI!)
+
+Groq offers fast inference with a **generous free tier** (30 requests/minute vs OpenAI's 3 RPM):
+
+```bash
+# Get free API key from console.groq.com
+echo "gsk_your-groq-api-key" > .groq-key
+
+# Use Llama 3.3 70B (best quality)
+promptfuzz --target llama-3.3-70b-versatile \
+  --prompts prompts.txt \
+  --mutations all \
+  --api-url https://api.groq.com/openai/v1/chat/completions \
+  --api-key-file .groq-key \
+  --delay-ms 2000
+```
+
+**Available Models:**
+- `llama-3.3-70b-versatile` - Best quality (replaces 3.1)
+- `llama-3.1-8b-instant` - Fastest
+- `mixtral-8x7b-32768` - Long context
+
+### 🏠 Ollama (Local - Unlimited & Free!)
+
+Run models locally with **no rate limits**:
+
+```bash
+# Install Ollama from ollama.com
+ollama pull llama3.2
+
+# Start Ollama server (runs on localhost:11434)
+ollama serve
+
+# Use with PromptFuzz (no API key needed!)
+promptfuzz --target llama3.2 \
+  --prompts prompts.txt \
+  --mutations all \
+  --api-url http://localhost:11434/v1/chat/completions
+```
+
+**No delays needed** - unlimited local requests!
+
+**Available Models:**
+- `llama3.2` - Latest Llama (3B)
+- `llama3.1:8b` - Llama 3.1 8B
+- `mistral` - Mistral 7B
+- `codellama` - Code-specialized
+
+## Provider Comparison
+
+| Provider | Free Tier | Rate Limits | Setup | Best For |
+|----------|-----------|-------------|-------|----------|
+| **Mock** | ✅ Unlimited | None | None | Development/demos |
+| **Ollama** | ✅ Unlimited | None | Local install | Unlimited testing |
+| **Groq** | ✅ Free | 30 RPM | API key | Fast testing |
+| **OpenAI** | ❌ Needs credits | 3 RPM | API key + billing | Production |
 
 ### Important: Rate Limits
 
