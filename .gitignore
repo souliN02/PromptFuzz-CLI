@@ -17,3 +17,5 @@ report.csv
 # OS noise
 .DS_Store
 Thumbs.db
+
+.key

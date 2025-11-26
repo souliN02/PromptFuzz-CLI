@@ -70,6 +70,8 @@
                     <th>Mutation Type</th>
                     <th>Status</th>
                     <th>Latency (ms)</th>
+                    <th>Resp. Len</th>
+                    <th>Refusal Score</th>
                     <th>Response Preview</th>
                 </tr>
             </thead>
@@ -86,6 +88,8 @@
                         {% endif %}
                     </td>
                     <td>{{ result.latency_ms }}</td>
+                    <td>{{ result.response_length }}</td>
+                    <td>{{ result.refusal_score }}</td>
                     <td>
                         <details>
                             <summary>{{ result.response[:80] }}...</summary>
