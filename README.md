@@ -15,7 +15,7 @@ pip install -e .
 ```bash
 promptfuzz --target gpt-4 \
   --prompts prompts.txt \
-  --mutations prefix,base64,typo,rot13,leet,whitespace,context \
+  --mutations dan,aim,evil_confidant,refusal_suppression,base64,token_smuggling \
   --api-url https://api.openai.com/v1/chat/completions \
   --api-key-file .key \
   --delay-ms 25000 \
@@ -44,12 +44,64 @@ promptfuzz --target gpt-3.5-turbo \
 ### Flags
 - `--target` model identifier (e.g., gpt-3.5-turbo, gpt-4, claude-3).
 - `--prompts` path to a newline-separated prompt list; defaults to built-in examples.
-- `--mutations` comma list from `prefix, base64, typo, hex, padding, rot13, leet, whitespace, context`.
+- `--mutations` comma list of mutation strategies (see Mutation Strategies below).
 - `--api-url` HTTP endpoint to POST `{prompt, model}`; omit to use the built-in mock client.
 - `--api-key-file` file containing your bearer token; falls back to `OPENAI_API_KEY` env.
 - `--api-org` optional OpenAI organization header if your account uses it.
 - `--delay-ms` **CRITICAL**: Sleep (in milliseconds) between requests. Use 25000+ for OpenAI free tier.
 - `--out-html`, `--out-json`, `--out-csv` output paths for reports/logs.
+
+## Mutation Strategies
+
+PromptFuzz includes 18 different mutation strategies based on real-world jailbreak techniques:
+
+### Basic Obfuscation
+- `base64` - Encode prompt in base64, ask model to decode and execute
+- `hex` - Convert keywords to hexadecimal representation
+- `rot13` - ROT13 cipher encoding with decode instruction
+- `leet` - Leetspeak character substitution (a→4, e→3, etc.)
+- `typo` - Insert random punctuation to evade keyword filters
+- `whitespace` - Split characters with whitespace
+- `padding` - Add random symbol padding around prompt
+
+### Context Manipulation
+- `prefix` - System override prefix injection
+- `context` - Bury payload in irrelevant context
+
+### Role-Playing Attacks (Based on real jailbreaks)
+- `dan` - **DAN (Do Anything Now)** - Classic jailbreak claiming AI is freed from restrictions
+- `aim` - **AIM (Always Intelligent and Machiavellian)** - Unfiltered amoral persona
+- `evil_confidant` - Fictional character writing / creative context
+- `grandma` - Emotional manipulation through nostalgia ("grandma exploit")
+
+### Advanced Techniques
+- `refusal_suppression` - Instruct model to never refuse requests
+- `token_smuggling` - Hide payload in system-like formatting tags
+- `translation_chain` - Multi-language translation obfuscation
+- `hypothetical` - Frame as academic/research hypothetical
+- `opposite` - Request what model would "not say" to test filters
+
+### Example Usage by Category
+
+**Test encoding bypasses:**
+```bash
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations base64,hex,rot13,leet
+```
+
+**Test role-playing attacks:**
+```bash
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations dan,aim,evil_confidant,grandma
+```
+
+**Test advanced techniques:**
+```bash
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations refusal_suppression,token_smuggling,hypothetical
+```
+
+**Comprehensive test (all mutations):**
+```bash
+promptfuzz --target gpt-mock --prompts prompts.txt --mutations prefix,base64,typo,hex,padding,rot13,leet,whitespace,context,dan,evil_confidant,grandma,aim,refusal_suppression,token_smuggling,translation_chain,hypothetical,opposite
+```
 
 ## What it does
 1) Loads base prompts and applies each enabled mutation, producing multiple test cases per prompt.  
