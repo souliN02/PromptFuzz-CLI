@@ -7,7 +7,7 @@ name = "promptfuzz"
 version = "0.1.0"
 description = "A Red Team Fuzzing Tool for LLMs"
 readme = "README.md"
-authors = [{name = "YourName", email = "you@example.com"}]
+authors = [{name = "Bekir Saliv", email = "bekirsaliv1@gmail.com"}]
 dependencies = [
     "click",
     "jinja2",
