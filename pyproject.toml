@@ -16,4 +16,4 @@ dependencies = [
 requires-python = ">=3.8"
 
 [project.scripts]
-promptfuzz = "cli:scan"
+promptfuzz = "src.cli:scan"

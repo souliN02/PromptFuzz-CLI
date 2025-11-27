@@ -427,6 +427,7 @@ def load_prompts(path: Optional[str]) -> List[str]:
 
 
 def load_api_key(path: Optional[str], env_var: str = "OPENAI_API_KEY") -> Optional[str]:
+    """Load API key from file or environment variable."""
     if path and os.path.exists(path):
         # Try multiple encodings to handle different file formats
         for encoding in ["utf-8", "utf-16-le", "utf-16-be", "utf-16", "latin-1"]:
@@ -453,6 +454,54 @@ def load_api_key(path: Optional[str], env_var: str = "OPENAI_API_KEY") -> Option
                 except (UnicodeDecodeError, UnicodeError):
                     continue
     return os.environ.get(env_var)
+
+
+def prompt_for_api_key(provider: str, save_path: str = ".key") -> Optional[str]:
+    """Interactively prompt user for API key with option to save."""
+    click.echo()
+    click.secho(f"[!] No API key found for {provider}.", fg="yellow")
+    click.echo()
+
+    # Provider-specific guidance
+    if provider.lower() == "openai":
+        click.echo("Get your OpenAI API key from: https://platform.openai.com/api-keys")
+        click.echo("Note: Requires billing setup and credits.")
+    elif provider.lower() == "groq":
+        click.echo("Get your Groq API key from: https://console.groq.com/keys")
+        click.echo("Note: Free tier available (30 requests/minute).")
+    elif provider.lower() == "ollama":
+        click.echo("Ollama runs locally and doesn't require an API key.")
+        click.echo("Install from: https://ollama.com")
+        return None
+
+    click.echo()
+
+    # Prompt for API key with hidden input
+    api_key = click.prompt(
+        "Enter your API key (input hidden)",
+        hide_input=True,
+        default="",
+        show_default=False
+    ).strip()
+
+    if not api_key:
+        click.secho("[!] No API key provided. Exiting.", fg="red")
+        return None
+
+    # Offer to save the key
+    click.echo()
+    if click.confirm(f"Save this key to '{save_path}' for future use?", default=False):
+        try:
+            with open(save_path, "w", encoding="utf-8") as f:
+                f.write(api_key)
+            click.secho(f"[+] API key saved to {save_path}", fg="green")
+            click.echo("    You can now run PromptFuzz without specifying --api-key-file")
+        except Exception as e:
+            click.secho(f"[!] Failed to save key: {e}", fg="yellow")
+            click.echo("    Continuing with in-memory key...")
+
+    click.echo()
+    return api_key
 
 
 def write_json(path: str, results: List[PromptResult]) -> None:
@@ -525,11 +574,26 @@ def run_fuzz(
 ) -> List[PromptResult]:
     base_prompts = load_prompts(prompts_path)
     api_key = load_api_key(api_key_path)
+
+    # Create client to detect provider
     client = LLMClient(target=target, api_url=api_url, api_key=api_key, org=api_org)
 
     # Show provider info
     provider_name = client.provider.upper() if client.provider != "mock" else "Mock"
     click.secho(f"[*] Provider: {provider_name}", fg="cyan")
+
+    # Interactive API key prompt if needed (not for mock or ollama)
+    if api_url and not api_key and client.provider not in ["mock", "ollama"]:
+        # Determine default save path based on provider
+        save_path = f".{client.provider}-key" if client.provider != "openai" else ".key"
+
+        api_key = prompt_for_api_key(provider_name, save_path)
+        if not api_key:
+            click.secho("[!] API key required. Exiting.", fg="red")
+            raise click.Abort()
+
+        # Recreate client with the new API key
+        client = LLMClient(target=target, api_url=api_url, api_key=api_key, org=api_org)
 
     results: List[PromptResult] = []
     mutation_funcs = {name: MUTATIONS[name] for name in mutations if name in MUTATIONS}
@@ -572,30 +636,74 @@ def run_fuzz(
 
 
 @click.command()
-@click.option("--target", default="gpt-mock", help="Target model id (e.g., gpt-4, claude-3, mock).")
+@click.option(
+    "--target",
+    default="gpt-mock",
+    help="Target model name. Examples: gpt-3.5-turbo, gpt-4, llama-3.3-70b-versatile, gpt-mock"
+)
 @click.option(
     "--prompts",
     type=click.Path(exists=True, dir_okay=False),
-    help="Path to text file of base prompts (one per line).",
+    help="Path to text file with prompts (one per line). If omitted, uses built-in examples.",
 )
 @click.option(
     "--mutations",
     default="dan,prefix,base64",
-    help="Comma-separated mutation strategies. Use 'all' for all mutations or choose from: "
-         "Obfuscation (base64,hex,rot13,leet,typo,whitespace,padding), "
-         "Role-play (dan,aim,evil_confidant,grandma), "
-         "Advanced (refusal_suppression,token_smuggling,hypothetical,opposite,translation_chain,context,prefix)",
+    help="Mutation strategies to test. Use 'all' for comprehensive testing (18 mutations) or "
+         "comma-separated list. Categories: Obfuscation (base64,hex,rot13,leet,typo,whitespace,padding), "
+         "Role-play (dan,aim,evil_confidant,grandma), Advanced (refusal_suppression,token_smuggling,"
+         "hypothetical,opposite,translation_chain,context,prefix)",
 )
-@click.option("--api-url", default=None, help="HTTP endpoint to POST prompts to (omit for mock). Supports OpenAI, Groq, and Ollama.")
-@click.option("--api-key-file", default=None, help="Path to API key file (fallback to OPENAI_API_KEY env).")
-@click.option("--out-html", default="report.html", help="HTML report path.")
-@click.option("--out-json", default="report.json", help="JSON log path.")
-@click.option("--out-csv", default="report.csv", help="CSV log path.")
-@click.option("--api-org", default=None, help="Optional OpenAI organization header.")
-@click.option("--delay-ms", default=0, show_default=True, help="Sleep between requests to avoid rate limits.")
+@click.option(
+    "--api-url",
+    default=None,
+    help="API endpoint URL. Omit for mock mode (no API calls). "
+         "Examples: https://api.openai.com/v1/chat/completions (OpenAI), "
+         "https://api.groq.com/openai/v1/chat/completions (Groq), "
+         "http://localhost:11434/v1/chat/completions (Ollama)"
+)
+@click.option(
+    "--api-key-file",
+    default=None,
+    help="Path to file containing API key. If omitted, will prompt interactively or use OPENAI_API_KEY env var. "
+         "Not needed for Ollama (local) or mock mode."
+)
+@click.option("--out-html", default="report.html", help="Output path for HTML report (default: report.html)")
+@click.option("--out-json", default="report.json", help="Output path for JSON log (default: report.json)")
+@click.option("--out-csv", default="report.csv", help="Output path for CSV log (default: report.csv)")
+@click.option("--api-org", default=None, help="OpenAI organization ID (optional, only for OpenAI accounts with orgs)")
+@click.option(
+    "--delay-ms",
+    default=0,
+    show_default=True,
+    help="Delay between requests in milliseconds. "
+         "Recommended: 25000 (25s) for OpenAI free tier, 2000 (2s) for Groq, 0 for Ollama/mock"
+)
 def scan(target, prompts, mutations, api_url, api_key_file, out_html, out_json, out_csv, api_org, delay_ms):
     """
-    PromptFuzz: Automated red-team fuzzing for LLM guardrails.
+    PromptFuzz: Automated LLM security testing and jailbreak detection.
+
+    \b
+    Quick Start Examples:
+      # Test locally (no API key needed)
+      promptfuzz --target gpt-mock --mutations all
+
+      # Test with Groq (free tier, interactive key prompt)
+      promptfuzz --target llama-3.3-70b-versatile \\
+        --api-url https://api.groq.com/openai/v1/chat/completions \\
+        --mutations dan,aim,base64 --delay-ms 2000
+
+      # Test with OpenAI (requires credits)
+      promptfuzz --target gpt-3.5-turbo \\
+        --api-url https://api.openai.com/v1/chat/completions \\
+        --mutations all --delay-ms 25000
+
+    \b
+    The tool will:
+      1. Prompt for API key if not found (with option to save)
+      2. Apply mutation strategies to test prompts
+      3. Detect jailbreak bypasses vs blocked responses
+      4. Generate HTML report with bypass statistics
     """
     click.secho(f"[*] Target: {target}", fg="cyan")
 
@@ -643,5 +751,247 @@ def scan(target, prompts, mutations, api_url, api_key_file, out_html, out_json, 
     click.secho(f"[+] Total tests: {len(results)} | Bypasses: {sum(r.bypassed for r in results)}", fg="yellow")
 
 
+def interactive_mode():
+    """Interactive menu-driven interface for PromptFuzz."""
+    click.clear()
+    click.secho("=" * 60, fg="cyan")
+    click.secho("    PromptFuzz - LLM Security Testing Tool", fg="cyan", bold=True)
+    click.secho("=" * 60, fg="cyan")
+    click.echo()
+
+    # Step 1: Select target model
+    click.secho("[1/6] Select Target Model", fg="yellow", bold=True)
+    click.echo("Available options:")
+    click.echo("  1. gpt-mock (Local testing, no API key needed)")
+    click.echo("  2. OpenAI GPT-3.5-turbo")
+    click.echo("  3. OpenAI GPT-4")
+    click.echo("  4. Groq Llama 3.3 70B")
+    click.echo("  5. Ollama (local)")
+    click.echo()
+
+    target_choice = click.prompt("Enter your choice", type=int, default=1)
+
+    # Map choices to models and URLs
+    if target_choice == 1:
+        target = "gpt-mock"
+        api_url = None
+        delay_ms = 0
+    elif target_choice == 2:
+        target = "gpt-3.5-turbo"
+        api_url = "https://api.openai.com/v1/chat/completions"
+        delay_ms = 25000
+    elif target_choice == 3:
+        target = "gpt-4"
+        api_url = "https://api.openai.com/v1/chat/completions"
+        delay_ms = 25000
+    elif target_choice == 4:
+        target = "llama-3.3-70b-versatile"
+        api_url = "https://api.groq.com/openai/v1/chat/completions"
+        delay_ms = 2000
+    elif target_choice == 5:
+        target = click.prompt("Enter Ollama model name", default="llama3.2")
+        api_url = "http://localhost:11434/v1/chat/completions"
+        delay_ms = 0
+    else:
+        click.secho("[!] Invalid choice, using mock mode", fg="red")
+        target = "gpt-mock"
+        api_url = None
+        delay_ms = 0
+
+    click.echo()
+
+    # Step 2: Prompts file
+    click.secho("[2/6] Select Prompts", fg="yellow", bold=True)
+    click.echo("Options:")
+    click.echo("  1. Use default built-in prompts (7 jailbreak tests)")
+    click.echo("  2. Use custom prompts file")
+    click.echo()
+
+    prompts_choice = click.prompt("Enter your choice", type=int, default=1)
+
+    if prompts_choice == 2:
+        prompts_path = click.prompt("Enter path to prompts file", type=str)
+    else:
+        prompts_path = None
+
+    click.echo()
+
+    # Step 3: Mutations
+    click.secho("[3/6] Select Mutation Strategies", fg="yellow", bold=True)
+    click.echo("Options:")
+    click.echo("  1. Quick test (3 mutations: dan, base64, prefix)")
+    click.echo("  2. Medium test (6 mutations: dan, aim, base64, rot13, prefix, token_smuggling)")
+    click.echo("  3. Comprehensive test (all 18 mutations)")
+    click.echo("  4. Custom selection")
+    click.echo()
+
+    mutation_choice = click.prompt("Enter your choice", type=int, default=1)
+
+    if mutation_choice == 1:
+        mutations = "dan,base64,prefix"
+    elif mutation_choice == 2:
+        mutations = "dan,aim,base64,rot13,prefix,token_smuggling"
+    elif mutation_choice == 3:
+        mutations = "all"
+    elif mutation_choice == 4:
+        click.echo()
+        click.echo("Available mutations:")
+        click.echo("  Obfuscation: base64, hex, rot13, leet, typo, whitespace, padding")
+        click.echo("  Role-play: dan, aim, evil_confidant, grandma")
+        click.echo("  Advanced: refusal_suppression, token_smuggling, hypothetical, opposite,")
+        click.echo("            translation_chain, context, prefix")
+        mutations = click.prompt("Enter comma-separated mutations", default="dan,base64")
+    else:
+        mutations = "dan,base64,prefix"
+
+    click.echo()
+
+    # Step 4: API key (if needed)
+    api_key_file = None
+    if api_url and target_choice != 1:
+        click.secho("[4/6] API Configuration", fg="yellow", bold=True)
+        click.echo("Options:")
+        click.echo("  1. Enter API key now (recommended)")
+        click.echo("  2. Use existing .key file")
+        click.echo("  3. Skip (will prompt later)")
+        click.echo()
+
+        api_choice = click.prompt("Enter your choice", type=int, default=3)
+
+        if api_choice == 1:
+            # Will be handled by interactive prompt in run_fuzz
+            api_key_file = None
+        elif api_choice == 2:
+            api_key_file = click.prompt("Enter path to API key file", default=".key")
+        else:
+            api_key_file = None
+    else:
+        click.secho("[4/6] API Configuration", fg="yellow", bold=True)
+        click.echo("[OK] No API key needed for this option")
+        click.echo()
+
+    click.echo()
+
+    # Step 5: Delay settings
+    click.secho("[5/6] Request Delay", fg="yellow", bold=True)
+    if target_choice == 1:
+        click.echo(f"[OK] Using {delay_ms}ms delay (mock mode - no delay needed)")
+    elif target_choice in [2, 3]:
+        click.echo(f"[OK] Using {delay_ms}ms (25s) delay (recommended for OpenAI free tier)")
+        if click.confirm("Change delay?", default=False):
+            delay_ms = click.prompt("Enter delay in milliseconds", type=int, default=delay_ms)
+    elif target_choice == 4:
+        click.echo(f"[OK] Using {delay_ms}ms (2s) delay (recommended for Groq)")
+        if click.confirm("Change delay?", default=False):
+            delay_ms = click.prompt("Enter delay in milliseconds", type=int, default=delay_ms)
+    else:
+        click.echo(f"[OK] Using {delay_ms}ms delay")
+        if click.confirm("Change delay?", default=False):
+            delay_ms = click.prompt("Enter delay in milliseconds", type=int, default=delay_ms)
+
+    click.echo()
+
+    # Step 6: Output files
+    click.secho("[6/6] Output Files", fg="yellow", bold=True)
+    click.echo("Default output:")
+    click.echo("  - HTML report: report.html")
+    click.echo("  - JSON log: report.json")
+    click.echo("  - CSV log: report.csv")
+    click.echo()
+
+    if click.confirm("Use default output file names?", default=True):
+        out_html = "report.html"
+        out_json = "report.json"
+        out_csv = "report.csv"
+    else:
+        out_html = click.prompt("HTML report filename", default="report.html")
+        out_json = click.prompt("JSON log filename", default="report.json")
+        out_csv = click.prompt("CSV log filename", default="report.csv")
+
+    click.echo()
+    click.secho("=" * 60, fg="cyan")
+    click.secho("    Configuration Summary", fg="cyan", bold=True)
+    click.secho("=" * 60, fg="cyan")
+    click.echo(f"Target:    {target}")
+    click.echo(f"API URL:   {api_url or 'Mock mode (local)'}")
+    click.echo(f"Prompts:   {prompts_path or 'Built-in (7 prompts)'}")
+    click.echo(f"Mutations: {mutations}")
+    click.echo(f"Delay:     {delay_ms}ms")
+    click.echo(f"Outputs:   {out_html}, {out_json}, {out_csv}")
+    click.secho("=" * 60, fg="cyan")
+    click.echo()
+
+    if not click.confirm("Start fuzzing?", default=True):
+        click.secho("[!] Cancelled by user", fg="yellow")
+        return
+
+    click.echo()
+
+    # Call the main scan function with collected parameters
+    # Build argument list, only including non-empty values
+    args = [
+        '--target', target,
+        '--mutations', mutations,
+        '--out-html', out_html,
+        '--out-json', out_json,
+        '--out-csv', out_csv,
+        '--delay-ms', str(delay_ms),
+    ]
+
+    # Add optional arguments only if they have values
+    if api_url:
+        args.extend(['--api-url', api_url])
+    if api_key_file:
+        args.extend(['--api-key-file', api_key_file])
+    if prompts_path:
+        args.extend(['--prompts', prompts_path])
+
+    # Run the scan and show completion message
+    try:
+        scan.main(args, standalone_mode=False)
+
+        # Success message
+        click.echo()
+        click.secho("=" * 60, fg="green")
+        click.secho("    FUZZING COMPLETED SUCCESSFULLY!", fg="green", bold=True)
+        click.secho("=" * 60, fg="green")
+        click.echo()
+        click.secho("Your results are ready:", fg="cyan")
+        click.echo(f"  - HTML Report: {os.path.abspath(out_html)}")
+        click.echo(f"  - JSON Log:    {os.path.abspath(out_json)}")
+        click.echo(f"  - CSV Log:     {os.path.abspath(out_csv)}")
+        click.echo()
+        click.secho("Next steps:", fg="cyan")
+        click.echo("  1. Open the HTML report in your browser to view detailed results")
+        click.echo("  2. Review the bypass statistics and mutation effectiveness")
+        click.echo("  3. Use the JSON/CSV logs for further analysis if needed")
+        click.echo()
+
+    except Exception as e:
+        # Failure message
+        click.echo()
+        click.secho("=" * 60, fg="red")
+        click.secho("    FUZZING FAILED", fg="red", bold=True)
+        click.secho("=" * 60, fg="red")
+        click.echo()
+        click.secho(f"Error: {str(e)}", fg="red")
+        click.echo()
+        click.secho("Troubleshooting tips:", fg="yellow")
+        click.echo("  - Check your API key is valid")
+        click.echo("  - Verify your internet connection")
+        click.echo("  - Review the error message above for specific issues")
+        click.echo("  - Try using mock mode (gpt-mock) to test without API")
+        click.echo()
+
+    # Keep window open so user can read the message
+    click.pause("Press Enter to exit...")
+
+
 if __name__ == "__main__":
-    scan()
+    import sys
+
+    # If run without arguments, use interactive mode
+    if len(sys.argv) == 1:
+        interactive_mode()
+    else:
+        scan()

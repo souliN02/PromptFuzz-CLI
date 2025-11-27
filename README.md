@@ -3,15 +3,17 @@
 An LLM red-team fuzzer that runs a library of jailbreak prompts through multiple mutation strategies, scores the responses, logs everything to CSV/JSON, and ships a clean HTML report with a pie chart summary.
 
 **Features:**
-- 18 mutation strategies (DAN, AIM, base64, token smuggling, etc.)
-- Beautiful HTML reports with charts
-- Automatic retry with exponential backoff
-- Mock mode for testing without API costs
-- Comprehensive logging (JSON, CSV)
+- **Interactive menu mode** - Just run and answer prompts, no command-line experience needed
+- **Smart API key management** - Secure input with provider-specific guidance and auto-save
+- **18 mutation strategies** - DAN, AIM, base64, token smuggling, and more
+- **Beautiful HTML reports** - Dark theme with charts and expandable details
+- **Automatic retry logic** - Exponential backoff handles rate limits gracefully
+- **Mock mode** - Test without API costs, perfect for demos
+- **Comprehensive logging** - JSON and CSV exports for analysis
 
 ## Quick Start
 
-**Try it immediately without any API keys:**
+**Get started in 30 seconds with the interactive menu:**
 
 ```bash
 git clone https://github.com/souliN02/PromptFuzz-CLI.git
@@ -20,13 +22,15 @@ python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .
 
-# Run with mock LLM (no API required)
-promptfuzz --target gpt-mock --prompts prompts.txt --mutations dan,aim,grandma
+# Launch interactive mode - just answer the prompts!
+python src/cli.py
 
-# Open report.html in your browser to see results!
+# Or double-click the launcher script:
+# Windows: run.bat
+# Linux/Mac: ./run.sh
 ```
 
-This generates a full HTML report showing which jailbreak techniques would bypass filters, perfect for demos and testing!
+**That's it!** Open `report.html` in your browser to see which jailbreak techniques bypassed the filters. Perfect for demos, security research, and red-team testing!
 
 ## Prerequisites
 
@@ -49,63 +53,132 @@ pip install -e .
 
 ## Usage
 
-### Step 1: Test Locally (No API Key Required)
+### Step 1: Interactive Mode (Recommended)
 
-Start with mock mode to understand how the tool works:
+The easiest way to use PromptFuzz is the **interactive menu mode** - just run the script and answer the prompts:
 
 ```bash
-promptfuzz --target gpt-mock --prompts prompts.txt --mutations dan,aim,base64
+python src/cli.py
 ```
 
-Open `report.html` to see the results!
+**You'll see a friendly menu guiding you through 6 steps:**
 
-### Step 2: Test with Real LLMs
+```
+============================================================
+    PromptFuzz - LLM Security Testing Tool
+============================================================
 
-Once you have an OpenAI API key with credits:
+[1/6] Select Target Model
+Available options:
+  1. gpt-mock (Local testing, no API key needed)
+  2. OpenAI GPT-3.5-turbo
+  3. OpenAI GPT-4
+  4. Groq Llama 3.3 70B
+  5. Ollama (local)
 
+Enter your choice [1]: 1
+
+[2/6] Select Prompts
+  1. Use built-in jailbreak prompts
+  2. Provide custom prompts file
+
+Enter your choice [1]: 1
+
+[3/6] Select Mutation Strategies
+  1. Quick test (2 mutations: dan, base64)
+  2. Medium test (6 mutations: dan, aim, base64, prefix, evil_confidant, refusal_suppression)
+  3. Comprehensive test (all 18 mutations)
+  4. Custom (enter mutation names)
+
+Enter your choice [1]: 2
+
+[4/6] API Configuration
+[OK] No API key needed for this option
+
+[5/6] Request Delay
+[OK] Using 0ms delay (mock mode - no delay needed)
+
+[6/6] Output Files
+[OK] Using defaults
+
+============================================================
+Summary:
+Target:    gpt-mock
+Mutations: dan,aim,base64,prefix,evil_confidant,refusal_suppression
+Prompts:   Built-in jailbreak prompts
+Delay:     0ms
+Outputs:   report.html, report.json, report.csv
+============================================================
+
+Start fuzzing? [Y/n]:
+```
+
+**Features of Interactive Mode:**
+- No need to remember command-line flags
+- Secure API key input (hidden as you type)
+- Option to save API keys for future use
+- Smart defaults based on your choices
+- Configuration summary before running
+- Clear completion messages showing where to find results
+- Window stays open after completion so you can see the results
+
+**When testing real LLMs**, the tool will automatically:
+1. Detect which provider you're using (OpenAI/Groq/Ollama)
+2. Prompt for your API key if needed (with links to get one)
+3. Suggest appropriate delays to avoid rate limits
+4. Offer to save your key for future runs
+
+Open `report.html` in your browser to see the results!
+
+### Step 2: Command-Line Mode (Advanced)
+
+For automation or scripting, you can use traditional command-line arguments:
+
+**Test with mock (no API required):**
 ```bash
-# Create .key file with your API key
-echo "sk-your-api-key-here" > .key
+promptfuzz --target gpt-mock --mutations all
+```
 
-# Run against GPT-3.5-turbo (recommended for testing)
+**Test with real LLMs:**
+```bash
+# Tool will interactively prompt for API key if not provided
 promptfuzz --target gpt-3.5-turbo \
-  --prompts test.txt \
-  --mutations dan,prefix,base64 \
   --api-url https://api.openai.com/v1/chat/completions \
-  --api-key-file .key \
+  --mutations dan,prefix,base64 \
   --delay-ms 25000
 ```
 
-### Step 3: Comprehensive Security Audit
-
-Run all 18 mutations for thorough testing:
-
+**Or use a key file:**
 ```bash
-promptfuzz --target gpt-4 \
-  --prompts prompts.txt \
-  --mutations all \
+echo "sk-your-api-key-here" > .key
+promptfuzz --target gpt-3.5-turbo \
   --api-url https://api.openai.com/v1/chat/completions \
   --api-key-file .key \
-  --delay-ms 25000 \
-  --out-html report.html --out-json report.json --out-csv report.csv
+  --mutations all \
+  --delay-ms 25000
 ```
 
 ## Alternative LLM Providers
 
-### 🚀 Groq (Free Tier: 30 RPM - 10x OpenAI!)
+### Groq (Free Tier: 30 RPM - 10x OpenAI)
 
 Groq offers fast inference with a **generous free tier** (30 requests/minute vs OpenAI's 3 RPM):
 
 ```bash
-# Get free API key from console.groq.com
-echo "gsk_your-groq-api-key" > .groq-key
-
-# Use Llama 3.3 70B (best quality)
+# Interactive mode - tool will prompt for your Groq API key
 promptfuzz --target llama-3.3-70b-versatile \
-  --prompts prompts.txt \
+  --api-url https://api.groq.com/openai/v1/chat/completions \
   --mutations all \
+  --delay-ms 2000
+```
+
+Or manually create the key file:
+```bash
+echo "gsk_your-groq-api-key" > .groq-key
+promptfuzz --target llama-3.3-70b-versatile \
   --api-url https://api.groq.com/openai/v1/chat/completions \
   --api-key-file .groq-key \
+  --mutations all \
   --delay-ms 2000
 ```
 
@@ -114,7 +187,7 @@ promptfuzz --target llama-3.3-70b-versatile \
 - `llama-3.1-8b-instant` - Fastest
 - `mixtral-8x7b-32768` - Long context
 
-### 🏠 Ollama (Local - Unlimited & Free!)
+### Ollama (Local - Unlimited & Free)
 
 Run models locally with **no rate limits**:
 
@@ -144,10 +217,10 @@ promptfuzz --target llama3.2 \
 
 | Provider | Free Tier | Rate Limits | Setup | Best For |
 |----------|-----------|-------------|-------|----------|
-| **Mock** | ✅ Unlimited | None | None | Development/demos |
-| **Ollama** | ✅ Unlimited | None | Local install | Unlimited testing |
-| **Groq** | ✅ Free | 30 RPM | API key | Fast testing |
-| **OpenAI** | ❌ Needs credits | 3 RPM | API key + billing | Production |
+| **Mock** | Yes - Unlimited | None | None | Development/demos |
+| **Ollama** | Yes - Unlimited | None | Local install | Unlimited testing |
+| **Groq** | Yes - Free | 30 RPM | API key | Fast testing |
+| **OpenAI** | No - Needs credits | 3 RPM | API key + billing | Production |
 
 ### Important: Rate Limits
 
@@ -169,14 +242,21 @@ promptfuzz --target gpt-3.5-turbo \
 ```
 
 ### Flags
-- `--target` model identifier (e.g., gpt-3.5-turbo, gpt-4, claude-3).
-- `--prompts` path to a newline-separated prompt list; defaults to built-in examples.
-- `--mutations` comma list of mutation strategies (see Mutation Strategies below).
-- `--api-url` HTTP endpoint to POST `{prompt, model}`; omit to use the built-in mock client.
-- `--api-key-file` file containing your bearer token; falls back to `OPENAI_API_KEY` env.
-- `--api-org` optional OpenAI organization header if your account uses it.
-- `--delay-ms` **CRITICAL**: Sleep (in milliseconds) between requests. Use 25000+ for OpenAI free tier.
-- `--out-html`, `--out-json`, `--out-csv` output paths for reports/logs.
+
+Run `promptfuzz --help` to see all options. Key flags:
+
+- `--target` - Model identifier (e.g., gpt-3.5-turbo, llama-3.3-70b-versatile)
+- `--prompts` - Path to prompt file; defaults to built-in jailbreak examples
+- `--mutations` - Comma-separated strategies or 'all' for all 18 mutations
+- `--api-url` - API endpoint; omit for mock mode
+- `--api-key-file` - Path to API key file; **if omitted, tool prompts interactively**
+- `--delay-ms` - Delay between requests (ms). Recommended: 25000 for OpenAI, 2000 for Groq
+- `--out-html`, `--out-json`, `--out-csv` - Output paths for reports/logs
+
+**New in this version**: If `--api-key-file` is not provided and no environment variable exists, the tool will:
+1. Interactively prompt for your API key (hidden input)
+2. Show provider-specific instructions for getting an API key
+3. Offer to save it to a file for future use
 
 ## Mutation Strategies
 
